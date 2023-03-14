@@ -229,9 +229,56 @@ legal_move([Player_tile_N1, Player_tile_N2]):-
 % ------------------- Toma de decisiones --------------------
 % Aquí va el árbol mamado
 
+% Definimos el arbol de juego
+% Arbol lista de nodos donde cada nodo es una lista de nodos hijos y sus puntuaciones asociadas
+% El nodo raiz tiene una lista vacia de hijos y representa el estado inicial del juego
+game_tree([
+    [ % nodo raiz
+        [[], 3],
+        [[], 6],
+        [[], 9]
+    ],
+    [ % nodos nivel 1
+        [
+            [[], 2],
+            [[], 4]
+        ],
+        [
+            [[], 6],
+            [[], 8]
+        ]
+    ],
+    [ % nodos nivel 2
+        [
+            [[], 1],
+            [[], 3]
+        ],
+        [
+            [[], 7],
+            [[], 5]
+        ]
+    ]
+]).
 
+% Defininos el algo minimax
+% input: arbol, nivel actual
+% output: mejor puntuacion y movimiento asociado para el jugador actual
+minimax(GameTree, Level, BestScore, BestMove) :-
+    nth0(Level, GameTree, Node), % Get the current level node from the game tree
+    findall(Score-Move, (
+        nth0(_, Node, [ChildNode, Score]), % Get each child node and its score
+        minimax(GameTree, Level+1, ChildScore, _), % Recursively evaluate the child node
+        Score is -ChildScore, % Invert the child score, since we are evaluating the game from the perspective of the opponent
+        Move is ChildNode % Set the move to the child node
+    ), ScoreMoves), % Collect all the possible scores and moves
+    (Level =:= 0 -> % If we are at the root level, choose the move with the highest score
+        reverse(ScoreMoves, [_-BestMove|_]), % Sort the scores and moves in descending order and choose the first one
+        BestScore is -Score % Invert the score, since it is evaluated from the opponent's perspective
+    ; % If we are not at the root level, choose the move with the lowest score
+        sort(ScoreMoves, [BestScore-BestMove|_]) % Sort the scores and moves in ascending order and choose the first one
+    ).
 
-
-
-
-
+% Example usage:
+?- game_tree(GameTree), minimax(GameTree, 0, BestScore, BestMove).
+BestScore = 3,
+BestMove = [].
