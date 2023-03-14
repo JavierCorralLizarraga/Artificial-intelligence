@@ -1,4 +1,8 @@
-% ------------------- Estado de juego --------------------
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   Estado de juego   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % main inicializa el estado del juego
 % 
 % game_state guarda todo lo que se conoce acerca del estado actual: fichas que no se han jugado, número de fichas por jugador, 
@@ -6,9 +10,12 @@
 :- dynamic game_state/2, turn/1, next_turn/0, game_over/0.
 main:-
   % Guarda qué fichas no se han jugado
-  assert(game_state(rem_tiles, [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (3, 3), (3, 4), (3, 5), (3, 6), (4, 4), (4, 5), (4, 6), (5, 5), (5, 6), (6, 6)])),
+  assert(game_state(rem_tiles, [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), (1, 1), 
+  															(1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (2, 2), (2, 3), (2, 4), 
+  															(2, 5), (2, 6), (3, 3), (3, 4), (3, 5), (3, 6), (4, 4), (4, 5), 
+  															(4, 6), (5, 5), (5, 6), (6, 6)])),
   assert(game_state(num_player_tiles, 0)), % inicia en 0 para contarlas después
-  assert(game_state(num_op_tiles, 7)),
+  assert(game_state(num_oppo_tiles, 7)),
   assert(game_state(player_hand, [])),
   assert(game_state(open_tiles, [])), % las dos fichas junto a las que se puede colocar una nueva
   read_ini_player_hand,
@@ -20,103 +27,144 @@ main:-
   .
 
 % Regresa verdadero si el juego no se ha acabado
-:- dynamic game_over/0.
 game_over:-false.
 
+% Termina el juego y revisa quién ganó
+end_game:-
+	retract(not(game_over)), assert(game_over),
+	game_state(num_player_tiles, Num_player_tiles),
+	game_state(num_player_tiles, Num_oppo_tiles),
+	(	Num_player_tiles < Num_oppo_tiles ->
+			write("Ganaste"), nl;
+		Num_player_tiles > Num_oppo_tiles ->
+			write("Ganó el oponente"), nl;
+			write("Empataron"), nl
+	).
+
 % Invierte el valor de turn
+% 0: oponente; 1: jugador
 next_turn:-
 	turn(Turn),
 	New_turn is (Turn+1) mod 2,
 	retract(turn(Turn)),
-	assert(turn(New_turn))
+	assert(turn(New_turn)),
 	( New_turn =:= 0 ->
 			write("Tu turno"), nl;
 			write("Turno del oponente"), nl
 	).
 
-% 
+% Lleva a cabo todos los turnos después del primero hasta que acaba el juego
 game_loop:-
 	not(game_over),
   turn(Turn),
   ( Turn = 1 -> 
-  		player_turn;
-   		op_turn
+  		player_turn, !;
+   		oppo_turn
   ),
   game_state(num_player_tiles, Num_player_tiles),
-  game_state(num_op_tiles, Num_op_tiles),
-  ( Num_player_tiles = 0; Num_op_tiles = 0 ->
+  game_state(num_oppo_tiles, Num_oppo_tiles),
+  ( Num_player_tiles = 0; Num_oppo_tiles = 0 ->
    		end_game, !;
    		!
   ),
   next_turn,
   game_loop.
 
-% 
+% Lleva a cabo un turno del jugador (excepto el primero del juego) 
 player_turn:-
 	fail
 	.
 
-% 
-op_turn:-
-	op_steal,
-	write("¿Qué tiró el oponente? Si no tuvo jugadas legales, escribe '7,7.'"), nl,
-	read(Op_tile), conf(Op_tile),
-	(	Op_tile =:= (7, 7) ->
-			write("acabó"), end_game;
-			op_pick_open(Op_tile)
-	),
-	op_play
-	.
 
-%
-op_steal:-
-	write("¿El oponente tomó del pozo? 's.' o 'n.'"),
-	read(Op_stock),
-	(	Op_stock =:= s ->
-			% Suma la cantidad de fichas que tomó el oponente del pozo
-			write("¿Cuántas?"), nl, read(Op_stock_num), conf(Op_stock_num),
+% Lleva a cabo un turno del oponente (excepto el primero del juego)
+oppo_turn:-
+	oppo_steal,
+	oppo_pick_tile(Oppo_tile),
+	(	Oppo_tile \= (7, 7) ->
+			oppo_pick_open(Oppo_tile, Open_tile),
+			oppo_play(Oppo_tile, Open_tile);
+			!
+	).
+
+% En caso de que robe algo del pozo
+oppo_steal:-
+	write("¿El oponente tomó del pozo? 's.' o 'n.'"), nl,
+	read(Oppo_stock),
+	(	Oppo_stock =:= s ->
+			write("¿Cuántas?"), nl, read(Oppo_stock_num), conf(Oppo_stock_num),
 			game_state(rem_pieces, Rem_pieces),
-			(	length(Rem_pieces) < Op_stock_num ->
-					write("No hay suficientes fichas en el pozo"), nl, op_steal;
+			
+			(	length(Rem_pieces) < Oppo_stock_num ->
+					write("No hay suficientes fichas en el pozo"), nl, oppo_steal, !;
 					!
 			),
-			game_state(num_op_tiles, Num_op_tiles),
-			New_num_op_tiles is Num_optiles + Op_stock_num,
-			retract(game_state(num_op_tiles, Num_op_tiles)),
-			assert(game_state(num_op_tiles, New_num_op_tiles))
+			
+			% Suma las fichas que tomó el oponente del pozo a su mano
+			game_state(num_oppo_tiles, Num_oppo_tiles),
+			New_num_oppo_tiles is Num_oppo_tiles + Oppo_stock_num,
+			write("ahora tiene "), write(New_num_oppo_tiles), % TODO: borrar
+			retract(game_state(num_oppo_tiles, Num_oppo_tiles)),
+			assert(game_state(num_oppo_tiles, New_num_oppo_tiles));
+			!
 	).
 
-% 
-op_pick_open(Op_tile):-
-	game_state(open_tiles, [Open_tile1, Open_tile1]),
+% Selecciona qué ficha jugó
+oppo_pick_tile(Oppo_tile):-
+	write("¿Qué tiró el oponente? Si no tuvo jugadas legales, escribe '7,7.'"), nl,
+	read(Tile), conf(Tile),
+	game_state(rem_pieces, Rem_pieces),
+	( Tile \= (7, 7), not(member(Tile, Rem_pieces)) ->
+			write("La ficha no está disponible"), nl, oppo_pick_tile(Oppo_tile), !;
+			Oppo_tile is Tile % iguala Oppo_tile a la ficha leída y la manda de regreso a oppo_turn
+	).
+
+% Elige junto a cuál de las fichas abiertas jugó
+oppo_pick_open(Oppo_tile, Open_tile):-
+	game_state(open_tiles, [Open_tile1, Open_tile2]),
 	write("Las fichas abiertas son: "), 
-	write(Open_tile1), write("  "), write(Open_tile1), nl,	
+	write(Open_tile1), write("  "), write(Open_tile2), nl,	
 	write("¿Junto a cuál ficha abierta tiró el oponente?"),
-	read(Open_tile_op), conf(Open_tile_op),
-	(	Open_tile_op =:= Open_tile1; Open_tile_op =:= Open_tile2 ->
-			(	legal_move(Open_tile_op) ->
-					place_tile(Open_tile_op, Op_tile);
-					write("¡Jugada ilegal!"), nl, op_turn
-			);
-			write("No elegiste una ficha abierta en el tablero"), nl, op_play
+	read(Tile), conf(Tile),
+	(	Tile =:= Open_tile1; Tile =:= Open_tile2 ->
+			(	legal_move(Tile) ->
+					Open_tile is Tile, !; % iguala Open_tile a la ficha leída y la manda de regreso
+					write("¡Jugada ilegal!"), nl, oppo_turn
+			), !;
+			write("No elegiste una ficha abierta en el tablero"), nl, 
+			oppo_pick_open(Oppo_tile, Open_tile)
 	).
 
-op_play(Op_tile):-
+% Actualiza el estado del juego
+oppo_play([Oppo_tile1, Oppo_tile2], Open_tile):-
+	% Actualiza cuántas fichas tiene el oponente
+	game_state(num_oppo_tiles, Num_oppo_tiles),
+	New_num_oppo_tiles is Num_oppo_tiles - 1,
+	retract(game_state(num_oppo_tiles, Num_oppo_tiles)),
+	assert(game_state(num_oppo_tiles, New_num_oppo_tiles)),
+	
+	% Actualiza qué fichas quedan
+	game_state(rem_tiles, Rem_tiles),
+	retract(game_state(rem_tiles, Rem_tiles)),
+	delete(Rem_tiles, [Oppo_tile1, Oppo_tile2], New_rem_tiles),
+  assert(game_state(rem_tiles, New_rem_tiles)),
+	
+	% Actualiza las fichas abiertas
+	game_state(open_tiles, Open_tiles),
+	retract(game_state(open_tiles, Open_tiles)),
+	delete(Open_tiles, Open_tile, Open_tiles_short),
+	(	Oppo_tile1 =:= Open_tile -> % revisa qué lado de la ficha queda abierto
+			% El lado 2 queda abierto
+			append(Open_tiles_short, [Oppo_tile2], New_open_tiles), !;
+			% El lado 1 queda abierto
+			append(Open_tiles_short, [Oppo_tile1], New_open_tiles), !
+	),
+  assert(game_state(open_tiles, New_open_tiles)).
 
-
-% Termina el juego y revisa quién ganó
-end_game:-
-	retract(not(game_over)), assert(game_over),
-	game_state(num_player_tiles, Num_player_tiles),
-	game_state(num_player_tiles, Num_op_tiles),
-	(	Num_player_tiles < Num_op_tiles ->
-			write("Ganaste"), nl;
-		Num_player_tiles > Num_op_tiles ->
-			write("Ganó el oponente"), nl;
-			write("Empataron"), nl
-	).
-
-% ------------------- Interacción con el usuario --------------------
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   Interacción con el usuario   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Lee y guarda las fichas que tiene el jugador
 read_ini_player_hand():-
  	% ------- Lectura de entrada --------
@@ -139,12 +187,12 @@ read_ini_player_hand():-
   % -------- Revisión de la ficha ingresada ---------
   game_state(rem_tiles, Rem_tiles),
   game_state(player_hand, Player_hand),
-  ( not(member(Ordered_tile, Rem_tiles)) ->
-  	!, write("La ficha ingresada no está disponible"), nl, read_ini_player_hand;
-  	!
-  ),
   ( member(Ordered_tile, Player_hand) ->
   	!, write("Ya tienes la ficha ingresada"), nl, read_ini_player_hand;
+  	!
+  ),
+  ( not(member(Ordered_tile, Rem_tiles)) ->
+  	!, write("La ficha ingresada no existe"), nl, read_ini_player_hand;
   	!
   ),
   
@@ -181,7 +229,7 @@ order_input((N1, N2), Out):-
 
 % Establece qué jugador empieza
 set_starting_player():-
-	write("Escribe '0.' si empezamos nosotros o '1.' si empieza el oponente"),
+	write("Escribe '1.' si empezamos nosotros o '0.' si empieza el oponente"),
 	read(Turn),
 	assert(turn(Turn)).
 
@@ -195,38 +243,59 @@ conf_input(Inp):-
 % 
 print_player_hand:-
 	game_state(player_hand, Player_hand),
-	nl, write("Tus fichas:   "),
-	print_player_hand(Player_hand).
+	print_list(Player_hand, "Tus fichas:").
 
-print_player_hand([]):-nl.
-print_player_hand([Tile|Rest]):-
-	write(Tile), write("  "),
-	print_player_hand(Rest).
+% Imprime cualquier lista junto con un mensaje apropiado
+print_list(List, Message):-
+	write(Message), nl,
+	print_list(List).
+print_list([]):-nl.
+print_list([Elem|Rest]):-
+	write(Elem), write("   "),
+	print_list(Rest).
 
-% ------------------- Actualización automática del tablero --------------------
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%   Actualización automática del tablero   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Coloca la primera ficha
-place_first(Ficha):-
-  game_state
-  .
-  
-% Side: "L" (Left) o "R" (R)
-place_tile([N1, N2], Side):-
-  retract(rem_tiles( (N1, N2) )) % quita la ficha del pool disponible
-  .
+first_turn:-
+	write("¿Qué ficha se jugó?"), nl,
+	read(Tile), conf(Tile),
+	game_state(rem_tiles, Rem_tiles),
+	(	not(member(Tile, Rem_tiles)) ->
+			write("La ficha ingresada no existe"), nl, first_turn, !;
+			!
+	),
+	turn(Turn),
+	(	Turn =:= 0 ->
+		% Empieza el oponente
+		assert(game_state(open_pieces, Tile)),
+		oppo_play(Tile, Tile), !;
+		
+		% Empieza el jugador
+		!
+	).
+	
 
-legal_move(Open_tile, [Player_tile_N1, Player_tile_N2]):-
-	Open_tile =:= Player_tile_N1;
-	Open_tile =:= Player_tile_N2.
+legal_move(Open_tile, [Player_tile1, Player_tile2]):-
+	Open_tile =:= Player_tile1;
+	Open_tile =:= Player_tile2.
 
-legal_move([Player_tile_N1, Player_tile_N2]):-
-	game_state(open_tiles, [Open_tile_N1, Open_tile_N2]),
-	Open_tile_N1 = Player_tile_N1;
-	Open_tile_N1 = Player_tile_N2;
-	Open_tile_N2 = Player_tile_N1;
-	Open_tile_N2 = Player_tile_N2.
+legal_move([Player_tile1, Player_tile2]):-
+	game_state(open_tiles, [Open_tile1, Open_tile2]), % TODO: warning: singleton variables
+	Open_tile1 =:= Player_tile1;
+	Open_tile1 =:= Player_tile2;
+	Open_tile2 =:= Player_tile1;
+	Open_tile2 =:= Player_tile2.
 
 
-% ------------------- Toma de decisiones --------------------
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   Toma de decisiones   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Aquí va el árbol mamado
 
 % Definimos el arbol de juego
@@ -278,7 +347,11 @@ minimax(GameTree, Level, BestScore, BestMove) :-
         sort(ScoreMoves, [BestScore-BestMove|_]) % Sort the scores and moves in ascending order and choose the first one
     ).
 
+
+
+
+
 % Example usage:
-?- game_tree(GameTree), minimax(GameTree, 0, BestScore, BestMove).
-BestScore = 3,
-BestMove = [].
+%?- game_tree(GameTree), minimax(GameTree, 0, BestScore, BestMove).
+%BestScore = 3,
+%BestMove = [].
