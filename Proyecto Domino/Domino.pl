@@ -11,9 +11,9 @@
 main:-
   % Guarda qué fichas no se han jugado
   assert(game_state(rem_tiles, [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), (1, 1), 
-  				(1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (2, 2), (2, 3), (2, 4), 
-  				(2, 5), (2, 6), (3, 3), (3, 4), (3, 5), (3, 6), (4, 4), (4, 5), 
-  				(4, 6), (5, 5), (5, 6), (6, 6)])),
+                                (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (2, 2), (2, 3), (2, 4), 
+                                (2, 5), (2, 6), (3, 3), (3, 4), (3, 5), (3, 6), (4, 4), (4, 5), 
+                                (4, 6), (5, 5), (5, 6), (6, 6)])),
   assert(game_state(num_player_tiles, 0)), % inicia en 0 para contarlas después
   assert(game_state(num_oppo_tiles, 7)),
   assert(game_state(player_hand, [])),
@@ -49,8 +49,8 @@ next_turn:-
 	retract(turn(Turn)),
 	assert(turn(New_turn)),
 	( New_turn =:= 0 ->
-			write("Tu turno"), nl;
-			write("Turno del oponente"), nl
+			write("---------Tu turno--------"), nl;
+			write("---------Turno del oponente---------"), nl
 	).
 
 % Lleva a cabo todos los turnos después del primero hasta que acaba el juego
@@ -168,35 +168,35 @@ oppo_play([Oppo_tile1, Oppo_tile2], Open_tile):-
 % Lee y guarda las fichas que tiene el jugador
 read_ini_player_hand():-
  	% ------- Lectura de entrada --------
- 	game_state(num_player_tiles, Tile_count), % Consulta cuántas piezas llevamos
+ 	game_state(num_player_tiles, Num_player_tiles), % cuántas piezas llevamos
+ 	game_state(rem_tiles, Rem_tiles),
+  game_state(player_hand, Player_hand),
 	( tile_count = 0 ->
   	% Si es la primera ficha
-  	write("Ingresa cada ficha con el formato 'N1, N2.' y oprime enter"), nl;
+  	write("Ingresa cada ficha con el formato 'N1, N2.' y oprime enter"), nl, !;
   	% En caso contrario
-  	write("Tienes "), write(Tile_count), write(" fichas en tu mano. Ingresa otra"), nl
+  	write("Tienes "), write(Num_player_tiles), write(" fichas en tu mano. Ingresa otra"), nl
   ),
   read(Tile),
   order_input(Tile, Ordered_tile),
   
+  (
   % -------- Confirmación de la entrada ---------
+  % Es falso si el usuario confirma que su entrada está bien
   ( conf_input(Ordered_tile) ->
-  	!, read_ini_player_hand;
-  	!
-  ),
+  	read_ini_player_hand, ! % si vuelve a leer la entrada, ya no revisa lo que sigue
+  );
   
   % -------- Revisión de la ficha ingresada ---------
-  game_state(rem_tiles, Rem_tiles),
-  game_state(player_hand, Player_hand),
   ( member(Ordered_tile, Player_hand) ->
-  	!, write("Ya tienes la ficha ingresada"), nl, read_ini_player_hand;
-  	!
-  ),
+  	write("Ya tienes la ficha ingresada"), nl, read_ini_player_hand, !
+  );
   ( not(member(Ordered_tile, Rem_tiles)) ->
-  	!, write("La ficha ingresada no existe"), nl, read_ini_player_hand;
-  	!
-  ),
+  	write("La ficha ingresada no existe"), nl, read_ini_player_hand, !
+  );
   
   % -------- Actualización de game_state ---------
+  % Sólo llega a este punto si las condiciones anteriores fallaron
   % Actualiza las fichas disponibles
   retract(game_state(rem_tiles, Rem_tiles)),
   delete(Rem_tiles, Ordered_tile, New_rem_tiles),
@@ -208,13 +208,15 @@ read_ini_player_hand():-
   assert(game_state(player_hand, New_player_hand)),
   
   % Actualiza el número de fichas
-  retract(game_state(num_player_tiles, Tile_count)),
-  New_tile_count is Tile_count+1,
+  retract(game_state(num_player_tiles, Num_player_tiles)),
+  New_tile_count is Num_player_tiles+1,
   assert(game_state(num_player_tiles, New_tile_count)),
+  
   % Se detiene cuando llegamos a 7 fichas
   (New_tile_count < 3 -> % cambiar a 7
   	read_ini_player_hand;
   	! % regresa verdadero sin importar el caso
+  )
   ).
 
 % Se asegura que las fichas que se ingresen tengan el número menor a la izquierda
@@ -222,10 +224,14 @@ order_input_aux(Out, Out). % Iguala Out a la entrada
 order_input((N1, N2), Out):-
   ( N1 > N2 ->
     % reordena
-    order_input_aux((N2, N1), Out);
+    order_input_aux((N2, N1), Out), !; % El ! es por eficiencia
     % deja el orden igual
-    order_input_aux((N1, N2), Out)
+    order_input_aux((N1, N2), Out), ! % El ! es por eficiencia
   ).
+
+% Si no entra en los casos anteriores, la entrada es errónea;
+% regresa true y deja que el método principal lo maneje
+order_input(Out, Out). 
 
 % Establece qué jugador empieza
 set_starting_player():-
