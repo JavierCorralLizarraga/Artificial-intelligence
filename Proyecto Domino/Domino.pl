@@ -21,9 +21,9 @@ main:-
   assert(game_state(num_player_tiles, 0)), % inicia en 0 para contarlas después
   assert(game_state(num_oppo_tiles, 7)),
   assert(game_state(stock_size, 21)), % fichas en el pozo (inicialmente incluye las del jugador)
-  assert(game_state(oppo_missing), []), % fichas que el oponente no tiene
-  assert(game_state(oppo_passed), 0), % true si el oponente pasó el turno pasado
-  assert(game_state(player_passed), 0), % true si el jugador pasó el turno pasado
+  assert(game_state(oppo_missing, [])), % fichas que el oponente no tiene
+  assert(game_state(oppo_passed, 0)), % true si el oponente pasó el turno pasado
+  assert(game_state(player_passed, 0)), % true si el jugador pasó el turno pasado
   read_ini_player_hand,
   set_starting_player,
   first_turn,
@@ -473,7 +473,7 @@ print_list([Elem|Rest]):-
 
 % Escoge qué jugada hacer
 % player_choose_move(i, o, o)
-player_choose_move_([_], Ch_player_tile, Ch_open_tile_N):-
+player_choose_move([_], Ch_player_tile, Ch_open_tile_N):-
 	game_state(rem_tiles, Rem_tiles),
 	game_state(num_player_tiles, Num_player_tiles),
 	game_state(num_oppo_tiles, Num_oppo_tiles),
@@ -510,7 +510,7 @@ map_eval(Node, Move, Move_eval_pair):-
 	minimax(Node, 10, 0, Eval),
 	Move_eval_pair = Move-Eval.
 
-player_choose_move([(Tile_N1, Tile_N2)|_], Player_tile, Open_tile_N):-
+player_choose_move_([(Tile_N1, Tile_N2)|_], Player_tile, Open_tile_N):-
 	Player_tile = (Tile_N1, Tile_N2),
 	
 	game_state(open_tiles, [Open_tile_N1, Open_tile_N2]),
