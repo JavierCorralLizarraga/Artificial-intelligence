@@ -12,11 +12,11 @@
 :- use_module(library(clpfd)).
 main:-
   % Guarda las fichas del oponente y el pozo
-  assert(game_state(rem_tiles, [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), (1, 1), 
-                                (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (2, 2), (2, 3), (2, 4), 
-                                (2, 5), (2, 6), (3, 3), (3, 4), (3, 5), (3, 6), (4, 4), (4, 5), 
-                                (4, 6), (5, 5), (5, 6), (6, 6)])),
-  assert(game_state(player_hand, [])),
+  assert(game_state(rem_tiles, [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), 
+                                (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (2, 2), 
+                                (2, 3), (2, 4), (2, 5), (2, 6), (3, 3), (3, 4), (3, 5), 
+                                (3, 6), (4, 4), (4, 5), (4, 6), (5, 5), (5, 6), (6, 6)])),
+  assert(game_state(player_hand, [])),%[(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6)])),
   assert(game_state(open_tiles, [])), % las dos fichas junto a las que se puede colocar una nueva
   assert(game_state(num_player_tiles, 0)), % inicia en 0 para contarlas después
   assert(game_state(num_oppo_tiles, 7)),
@@ -33,30 +33,31 @@ main:-
 % Lee y guarda las fichas que tiene el jugador
 read_ini_player_hand:-
  	game_state(num_player_tiles, Num_player_tiles), % cuántas fichas llevamos
-	( Num_player_tiles = 0 ->
-  	% Si es la primera ficha
-  	writeln("Ingresa cada ficha con el formato 'N1, N2.' y oprime enter"), !;
-  	% En caso contrario
-  	write("Tienes "), write(Num_player_tiles), write(" fichas en tu mano. Ingresa otra"), nl
-  ),
-  read(Tile),
-  order_input(Tile, Ordered_tile),
-  
-  (
-		% Confirma la entrada
-		reenter_input(Ordered_tile, read_ini_player_hand);
-		% Revisa la ficha ingresada
-		tile_in_stock_or_oppo(Ordered_tile, read_ini_player_hand);
+	% Se detiene cuando llegamos a 7 fichas
+	(	Num_player_tiles < 7 ->
+		(
+		( Num_player_tiles = 0 ->
+			% Si es la primera ficha
+			writeln("Ingresa cada ficha con el formato 'N1, N2.' y oprime enter"), !;
+			% En caso contrario
+			write("Tienes "), write(Num_player_tiles), write(" fichas en tu mano. Ingresa otra"), nl
+		),
 		
-		% Actualiza el estado del juego
-		% Sólo llega a este punto si la entrada es correcta
-		add_player_tile(Ordered_tile),
+		read(Tile),
+		order_input(Tile, Ordered_tile),
 		
-		% Se detiene cuando llegamos a 7 fichas
-		(Num_player_tiles+1 < 7 ->
-			read_ini_player_hand;
-			! % regresa verdadero una vez que acaba
+		(
+			% Confirma la entrada
+			reenter_input(Ordered_tile, read_ini_player_hand), !;
+			% Revisa la ficha ingresada
+			tile_in_stock_or_oppo(Ordered_tile, read_ini_player_hand), !;
+			
+			% Actualiza el estado del juego (sólo llega a este punto si la entrada es correcta)
+			add_player_tile(Ordered_tile),
+			% Lee la siguiente entrada
+			read_ini_player_hand
 		)
+		); ! % regresa verdadero una vez que acaba
   ).
 
 % Establece qué jugador empieza
@@ -144,11 +145,12 @@ player_turn:-
 			% Actualiza si el jugador pasó o no
 			(	Player_passed =:= 1 -> 
 					New_player_passed is 0,
-					retract( game_state(player_passed, Player_passed) ),
-					assert( game_state(player_passed, New_player_passed) ); !
+					retract(game_state(player_passed, Player_passed)),
+					assert(game_state(player_passed, New_player_passed)); !
 			),
 			% Escoge una jugada (si tiene jugadas legales)
-			player_choose_move(Player_legal_tiles, Player_tile, Open_tile_N),
+			%player_choose_move(Player_legal_tiles, Player_tile, Open_tile_N),
+			player_choose_move(Player_tile, Open_tile_N),
 			place_tile(Player_tile, Open_tile_N),
 			write("Coloca "), write(Player_tile), write(" junto a "), write(Open_tile_N), nl
 	),
@@ -183,8 +185,8 @@ oppo_turn:-
 			% Actualiza si el oponente pasó o no
 			(	Oppo_passed =:= 0 -> 
 					New_oppo_passed is 1,
-					retract( game_state(oppo_passed, Oppo_passed) ),
-					assert( game_state(oppo_passed, New_oppo_passed) ); !
+					retract(game_state(oppo_passed, Oppo_passed)),
+					assert(game_state(oppo_passed, New_oppo_passed)); !
 			), !;
 			
 			% Si sí pasó
@@ -473,21 +475,21 @@ print_list([Elem|Rest]):-
 
 % Escoge qué jugada hacer
 % player_choose_move(i, o, o)
-player_choose_move([_], Ch_player_tile, Ch_open_tile_N):-
+player_choose_move(Ch_player_tile, Ch_open_tile_N):-
 	game_state(rem_tiles, Rem_tiles),
+	game_state(player_hand, Player_hand),
+	game_state(open_tiles, Open_tiles),
 	game_state(num_player_tiles, Num_player_tiles),
 	game_state(num_oppo_tiles, Num_oppo_tiles),
-	game_state(player_hand, Player_hand),
 	game_state(stock_size, Stock_size),
-	game_state(player_passed, Player_passed),
-	game_state(oppo_passed, Oppo_passed),
 	game_state(oppo_passed, Oppo_missing),
+	game_state(oppo_passed, Oppo_passed),
+	game_state(player_passed, Player_passed),
 	
-	% Node = [Rem_tiles, Player_hand, Open_tiles, Num_player_tiles, Num_oppo_tiles, Stock_size,
-	%         Oppo_missing, Oppo_passed, Player_passed, Prob]
-	Node = [Rem_tiles, Num_player_tiles, Num_oppo_tiles, Player_hand, Open_tiles, Stock_size, Oppo_missing, Oppo_passed, Player_passed, 1],
+	% Proba inicial es 1
+	Node = [Rem_tiles, Player_hand, Open_tiles, Num_player_tiles, Num_oppo_tiles, Stock_size, Oppo_missing, Oppo_passed, Player_passed, 1],
 	
-	% Llamar al árbol
+	% Encuentra todas las jugadas legales
 	findall([Player_tile, Open_tile_N], is_legal_move(Player_hand, Open_tiles, [Player_tile, Open_tile_N]), P_legal_moves),
 	sort_moves(Open_tiles, P_legal_moves, P_sorted_moves), % ordena nodos
 	% Encuentra los hijos del nodo actual
@@ -495,20 +497,22 @@ player_choose_move([_], Ch_player_tile, Ch_open_tile_N):-
 	
 	% Asigna a cada jugada su evaluación
 	maplist(map_eval, Children, P_sorted_moves, Move_eval_pairs),
-	% Ordena por puntaje (de manera ascendente)
+	% Ordena por heurística (de manera ascendente)
 	keysort(Move_eval_pairs, Sorted_pairs_),
 	% Reordena de manera descendente
 	reverse(Sorted_pairs_, Sorted_pairs),
 	% Coloca las jugadas en Ordered_moves
 	maplist(pair_second, Sorted_pairs, Ordered_moves),
-	% La primera de la lista es la mmejor jugada
+	% La primera de la lista es la mejor jugada
 	nth0(0, Ordered_moves, Best_move),
 	nth0(0, Best_move, Ch_player_tile),
 	nth0(1, Best_move, Ch_open_tile_N).
 
+% 
+% 
 map_eval(Node, Move, Move_eval_pair):-
-	minimax(Node, 10, 0, Eval),
-	Move_eval_pair = Move-Eval.
+	minimax(Node, 2, 0, Eval),
+	Move_eval_pair = Eval-Move.
 
 player_choose_move_([(Tile_N1, Tile_N2)|_], Player_tile, Open_tile_N):-
 	Player_tile = (Tile_N1, Tile_N2),
@@ -616,14 +620,14 @@ find_child(Node, Max_player, [(Tile_N1, Tile_N2), Open_tile_N], Child):-
 			% Jugador
 			delete(Player_hand, (Tile_N1, Tile_N2), New_player_hand),
 			New_num_player is Num_player_tiles-1,
-			Child is [Rem_tiles, New_player_hand, New_open_tiles, New_num_player, Num_oppo_tiles, Stock_size, Oppo_missing, Oppo_passed, Player_passed, Prob], !;
+			Child = [Rem_tiles, New_player_hand, New_open_tiles, New_num_player, Num_oppo_tiles, Stock_size, Oppo_missing, Oppo_passed, Player_passed, Prob], !;
 			
 			% Oponente
 			delete(Rem_tiles, (Tile_N1, Tile_N2), New_rem_tiles),
 			New_num_oppo is Num_oppo_tiles-1,
 			prob_move(Node, [(Tile_N1, Tile_N2), Open_tile_N], Prob_move),
 			New_prob is Prob * Prob_move,
-			Child is [New_rem_tiles, Player_hand, New_open_tiles, Num_player_tiles, New_num_oppo, Stock_size, Oppo_missing, Oppo_passed, Player_passed, New_prob]
+			Child = [New_rem_tiles, Player_hand, New_open_tiles, Num_player_tiles, New_num_oppo, Stock_size, Oppo_missing, Oppo_passed, Player_passed, New_prob]
 	).
 
 % Regresa true si la jugada dada es legal i.e. la ficha abierta dada es válida y la ficha
