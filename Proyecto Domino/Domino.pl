@@ -183,8 +183,8 @@ oppo_turn:-
 			oppo_pick_open(Oppo_tile, Open_tile),
 			place_tile(Oppo_tile, Open_tile),
 			% Actualiza si el oponente pasó o no
-			(	Oppo_passed =:= 0 -> 
-					New_oppo_passed is 1,
+			(	Oppo_passed =:= 1 -> 
+					New_oppo_passed is 0,
 					retract(game_state(oppo_passed, Oppo_passed)),
 					assert(game_state(oppo_passed, New_oppo_passed)); !
 			), !;
@@ -192,8 +192,8 @@ oppo_turn:-
 			% Si sí pasó
 			write("El oponente pasa"), nl,
 			% Actualiza si el oponente pasó o no
-			(	Oppo_passed =:= 1 -> 
-					New_oppo_passed is 0,
+			(	Oppo_passed =:= 0 -> 
+					New_oppo_passed is 1,
 					retract( game_state(oppo_passed, Oppo_passed) ),
 					assert( game_state(oppo_passed, New_oppo_passed) ); !
 			)
@@ -202,8 +202,10 @@ oppo_turn:-
 
 % En caso de que robe fichas del pozo
 oppo_steal:-
+	game_state(open_tiles, [Open_tile_N1, Open_tile_N2]),
 	game_state(stock_size, Stock_size),
 	game_state(num_oppo_tiles, Num_oppo_tiles),
+	game_state(oppo_missing, Oppo_missing),
 	write("¿El oponente robó del pozo? 's.' o 'n.'"), nl,
 	read(Oppo_stock),
 	(
@@ -230,7 +232,18 @@ oppo_steal:-
 			% Resta las fichas que tomó el oponente del pozo
 			New_stock_size is Stock_size - Oppo_stock_num,
 			retract(game_state(stock_size, Stock_size)),
-			assert(game_state(stock_size, New_stock_size))
+			assert(game_state(stock_size, New_stock_size)),
+			% Actualiza los números que el oponente no tiene
+			(	not(member(Open_tile_N1, Oppo_missing)) ->
+					append([Open_tile_N1], Oppo_missing, Oppo_missing1), !;
+					Oppo_missing1 = Oppo_missing % si ya está, no le agrega nada
+			),
+			(	not(member(Open_tile_N2, Oppo_missing1)) ->
+					append([Open_tile_N2], Oppo_missing1, Oppo_missing2), !;
+					Oppo_missing2 = Oppo_missing1 % si ya está, no le agrega nada
+			),
+			retract(game_state(oppo_missing, Oppo_missing)),
+			assert(game_state(oppo_missing, Oppo_missing2))
 		)
 	).
 
@@ -350,7 +363,7 @@ reenter_input(Inp, Method):-
   write("; escribe 'n.' para reintentar o 's.' para confirmar"), nl,
   read(Reenter),
   (	Reenter = n ->
-  		% Vuelve a llamar al método si ingrsó 'n'; si no, regresa false
+  		% Vuelve a llamar al método si ingresó 'n'; si no, regresa false
   		Method, !
   ).
 
@@ -410,6 +423,11 @@ tile_exists(Tile, Method):-
 legal_move((Tile_N1, Tile_N2), Open_tile_N):-
 	Open_tile_N =:= Tile_N1;
 	Open_tile_N =:= Tile_N2.
+% Igual que el método anterior, pero con una firma diferente por flexibilidad
+% legal_move2(i, i)
+legal_move2(Open_tile_N, (Tile_N1, Tile_N2)):-
+	Open_tile_N =:= Tile_N1;
+	Open_tile_N =:= Tile_N2.
 
 % Regresa true si la ficha dada puede colocarse en algún lado del tablero
 % tile_has_legal_move(i)
@@ -428,6 +446,7 @@ print_game_state:-
 	game_state(num_player_tiles, Num_player_tiles),
 	game_state(num_oppo_tiles, Num_oppo_tiles),
 	game_state(player_passed, Player_passed),
+	game_state(oppo_missing, Oppo_missing),
 	game_state(oppo_passed, Oppo_passed),
 	game_state(open_tiles, Open_tiles),
 	game_state(stock_size, Stock_size),
@@ -439,6 +458,7 @@ print_game_state:-
 	write("El oponente tiene "), write(Num_oppo_tiles), write(" fichas"), nl,
 	write("Fichas abiertas: "), write(Open_tiles), nl,
 	write("Hay "), write(Stock_size), write(" fichas en el pozo"), nl,
+	print_list(Oppo_missing, "El oponente no tiene: "),
 	
 	write("El jugador pasó: "),
 	(	Player_passed =:= 1 ->
@@ -482,7 +502,7 @@ player_choose_move(Ch_player_tile, Ch_open_tile_N):-
 	game_state(num_player_tiles, Num_player_tiles),
 	game_state(num_oppo_tiles, Num_oppo_tiles),
 	game_state(stock_size, Stock_size),
-	game_state(oppo_passed, Oppo_missing),
+	game_state(oppo_missing, Oppo_missing),
 	game_state(oppo_passed, Oppo_passed),
 	game_state(player_passed, Player_passed),
 	
@@ -491,7 +511,7 @@ player_choose_move(Ch_player_tile, Ch_open_tile_N):-
 	
 	% Encuentra todas las jugadas legales
 	findall([Player_tile, Open_tile_N], is_legal_move(Player_hand, Open_tiles, [Player_tile, Open_tile_N]), P_legal_moves),
-	sort_moves(Open_tiles, P_legal_moves, P_sorted_moves), % ordena nodos
+	sort_moves(Node, P_legal_moves, P_sorted_moves), % ordena nodos
 	% Encuentra los hijos del nodo actual
 	maplist(find_child(Node, 1), P_sorted_moves, Children),
 	
@@ -508,13 +528,9 @@ player_choose_move(Ch_player_tile, Ch_open_tile_N):-
 	nth0(0, Best_move, Ch_player_tile),
 	nth0(1, Best_move, Ch_open_tile_N).
 
-% 
-% 
-map_eval(Node, Move, Move_eval_pair):-
-	minimax(Node, 2, 0, Eval),
-	Move_eval_pair = Eval-Move.
-
+% Placeholder
 player_choose_move_([(Tile_N1, Tile_N2)|_], Player_tile, Open_tile_N):-
+	% Escoge la primera ficha de la lista
 	Player_tile = (Tile_N1, Tile_N2),
 	
 	game_state(open_tiles, [Open_tile_N1, Open_tile_N2]),
@@ -530,8 +546,10 @@ eval_node(Node, Eval):-
 	nth0(4, Node, Num_oppo_tiles),
 	nth0(9, Node, Prob),
 	(	Num_player_tiles = 0 ->
+			% El jugador gana
 			Eval is inf, !;
 		Num_oppo_tiles = 0 ->
+			% El oponente gana
 			Eval is -inf, !;
 			% Si ningún jugador ha ganado
 			Eval is Prob * (Num_oppo_tiles - Num_player_tiles)
@@ -541,22 +559,30 @@ eval_node(Node, Eval):-
 % Node = [Rem_tiles, Player_hand, Open_tiles, Num_player_tiles, Num_oppo_tiles, Stock_size,
 %         Oppo_missing, Oppo_passed, Player_passed, Prob]
 % minimax(i, i, i, o)
-minimax(Node, 0, _, Eval):-
-	eval_node(Node, Eval), !.
 minimax(Node, Depth, Max_player, Eval):-
-	Depth1 is Depth-1,
-	find_children(Node, Max_player, Children),
-	(	Max_player =:= 1 -> 
-			% Si es turno del jugador
-			minimax_max_player(Children, Depth1, -inf, Eval), !;
-			
-			% Si es turno del oponente
-			minimax_min_player(Children, Depth1, inf, Eval)
+	nth0(3, Node, Num_player_tiles),
+	nth0(4, Node, Num_oppo_tiles),
+	nth0(7, Node, Oppo_passed),
+	nth0(8, Node, Player_passed),
+	(	(Depth =:= 0; Num_player_tiles =:= 0; Num_oppo_tiles =:= 0; (Oppo_passed =:= 1, Player_passed =:= 1)) ->
+		% Evalúa si Depth es 0 o el juego termina
+		eval_node(Node, Eval), !;
+		
+		% En caso contrario, continúa explorando
+		Depth1 is Depth-1,
+		find_children(Node, Max_player, Children),
+		(	Max_player =:= 1 -> 
+				% Si es turno del jugador
+				minimax_max_player(Children, Depth1, -inf, Eval), !;
+				
+				% Si es turno del oponente
+				minimax_min_player(Children, Depth1, inf, Eval)
+		)
 	).
 
 % Métodos auxiliares para minimax
 % minimax_max_player(i, i, i, o)
-minimax_max_player([], _, Eval, Eval):- !.
+minimax_max_player([], _, Eval, Eval):- !. % cuando ya no quedan hijos, para
 minimax_max_player([Child|Rest], Depth, Prev_eval, Eval):-
 	minimax(Child, Depth, 0, New_eval),
 	( Prev_eval < New_eval ->
@@ -564,7 +590,7 @@ minimax_max_player([Child|Rest], Depth, Prev_eval, Eval):-
 			minimax_max_player(Rest, Depth, Prev_eval, Eval)
 	).
 % minimax_min_player(i, i, i, o)
-minimax_min_player([], _, Eval, Eval):- !.
+minimax_min_player([], _, Eval, Eval):- !. % cuando ya no quedan hijos, para
 minimax_min_player([Child|Rest], Depth, Prev_eval, Eval):-
 	minimax(Child, Depth, 1, New_eval),
 	( Prev_eval > New_eval ->
@@ -581,7 +607,7 @@ find_children(Node, Max_player, Children):-
 			nth0(1, Node, Player_hand),
 			% Encuentra todas las jugadas legales de la forma [Tile, Open_tile_N]
 			findall([Player_tile, Open_tile_N], is_legal_move(Player_hand, Open_tiles, [Player_tile, Open_tile_N]), P_legal_moves),
-			sort_moves(Open_tiles, P_legal_moves, P_sorted_moves), % ordena nodos
+			sort_moves(Node, P_legal_moves, P_sorted_moves), % ordena nodos
 			% Encuentra los hijos del nodo actual
 			maplist(find_child(Node, Max_player), P_sorted_moves, Children), !;
 			
@@ -630,6 +656,140 @@ find_child(Node, Max_player, [(Tile_N1, Tile_N2), Open_tile_N], Child):-
 			Child = [New_rem_tiles, Player_hand, New_open_tiles, Num_player_tiles, New_num_oppo, Stock_size, Oppo_missing, Oppo_passed, Player_passed, New_prob]
 	).
 
+% Árbol minimax con poda alpha-beta
+% minimax alpha_beta(i, i, i, i, i, o)
+minimax_alpha_beta(Node, Depth, Max_player, Alpha, Beta, Eval):-
+	nth0(3, Node, Num_player_tiles),
+	nth0(4, Node, Num_oppo_tiles),
+	nth0(7, Node, Oppo_passed),
+	nth0(8, Node, Player_passed),
+	(	(Depth =:= 0; Num_player_tiles =:= 0; Num_oppo_tiles =:= 0; (Oppo_passed =:= 1, Player_passed =:= 1)) ->
+		% Evalúa si Depth es 0 o el juego termina
+		eval_node(Node, Eval), !;
+		
+		% En caso contrario, continúa explorando
+		Depth1 is Depth-1,
+		find_children(Node, Children),
+		(	Max_player =:= 1 ->
+				% Si es turno del jugador
+				minimax_a_b_max_player(Children, Depth1, Alpha, Beta, -inf, Eval), !;
+				
+				% Si es turno del oponente
+				minimax_a_b_min_player(Children, Depth1, Alpha, Beta, inf, Eval)
+		)
+	).
+
+% Métodos auxiliares para minimax_alpha_beta
+% minimax_a_b_max_player(i, i, i, i, i, o)
+minimax_a_b_max_player([], _, _, _, Eval, Eval):- !. % cuando ya no quedan hijos, para
+minimax_a_b_max_player([Child|Rest], Depth, Alpha, Beta, Prev_eval, Eval):-
+	minimax_alpha_beta(Child, Depth, 0, Alpha, Beta, New_eval),
+	Alpha1 is max(Alpha, New_eval),
+	(	Beta =< Alpha1 ->
+				!; % se sale
+		( Prev_eval < New_eval->
+				minimax_a_b_max_player(Rest, Depth, Alpha1, Beta, New_eval, Eval), !;
+				minimax_a_b_max_player(Rest, Depth, Alpha1, Beta, Prev_eval, Eval)
+		)
+	).
+% minimax_a_b_min_player(i, i, i, i, i, o)
+minimax_a_b_min_player([], _, _, _, Eval, Eval):- !. % cuando ya no quedan hijos, para
+minimax_a_b_min_player([Child|Rest], Depth, Alpha, Beta, Prev_eval, Eval):-
+	minimax_alpha_beta(Child, Depth, 0, Alpha, Beta, New_eval),
+	Beta1 is min(Beta, New_eval),
+	(	Beta1 =< Alpha ->
+				!; % se sale
+		( Prev_eval > New_eval->
+				minimax_a_b_max_player(Rest, Depth, Alpha, Beta1, New_eval, Eval), !;
+				minimax_a_b_max_player(Rest, Depth, Alpha, Beta1, Prev_eval, Eval)
+		)
+	).
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   Utilidades de toma de decisiones   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Asigna a cada jugada la pareja Eval-Move
+% map_eval(i, i, o)
+map_eval(Node, Move, Move_eval_pair):-
+	minimax(Node, 2, 0, Eval),
+	Move_eval_pair = Eval-Move.
+
+% Ordena las jugadas legales por prioridad
+% sort_moves(i, i, o)
+sort_moves(Node, Legal_moves_, Ordered_moves):-
+	% Elimina jugadas repetidas
+	sort(Legal_moves_, Legal_moves),
+	% Mappea Move a la pareja Score-Move
+	maplist(map_score(Node), Legal_moves, Move_score_pair),
+	% Ordena por puntaje (de manera ascendente)
+	keysort(Move_score_pair, Sorted_pairs_),
+	% Reordena de manera descendente
+	reverse(Sorted_pairs_, Sorted_pairs),
+	% Coloca las jugadas en Ordered_moves
+	maplist(pair_second, Sorted_pairs, Ordered_moves).
+
+% Mappea Move a la pareja Score-Move
+% map_score(i,i, o) 
+map_score(Node, Move, Move_score_pair):-
+	score_move(Node, Move, Score),
+	Move_score_pair = Score-Move.
+
+% Asigna un puntaje a una jugada para ordenarlas
+%score_move(i, i, o)
+score_move(Node, [(Player_tile_N1, Player_tile_N2), Open_tile_N], Score):-
+	nth0(1, Node, Player_hand),
+	nth0(2, Node, [Open_tile_N1, Open_tile_N2]),
+	nth0(6, Node, Oppo_missing),
+	% Criterio 1: la ficha es mula
+	(	Player_tile_N1 =:= Player_tile_N2 ->
+			Score1 is 100, !;
+			Score1 is 0
+	),
+	% Criterio 2: esta jugada hace que los extremos que quedan abiertos sean números
+	% que el oponente no tiene
+	% Primero, encuentra qué números van a quedar abiertos
+	(	Open_tile_N = Open_tile_N1 ->
+			% Se coloca la ficha del lado 1
+			(	Player_tile_N1 = Open_tile_N1 ->
+					New_open = [Open_tile_N2, Player_tile_N2], !;
+					New_open = [Open_tile_N2, Player_tile_N1]
+			), !;
+			% Se coloca la ficha del lado 2
+			(	Player_tile_N1 = Open_tile_N2 ->
+					New_open = [Open_tile_N1, Player_tile_N2], !;
+					New_open = [Open_tile_N1, Player_tile_N1]
+			)
+	),
+	(	subset(New_open, Oppo_missing) ->
+			% Si el oponente no tiene ninguno de los nuevos números abiertos
+			Score2 is 50, !;
+			Score2 is 0
+	),
+	% Criterio 3: esta jugada nos garantiza otra jugada legal en el siguiente turno
+	delete(Player_hand, (Player_tile_N1, Player_tile_N2), New_player_hand), % quita la ficha que se tira
+	nth0(0, New_open, New_open_N1),
+	nth0(1, New_open, New_open_N2),
+	% Fichas que se pueden poner a la izquierda
+	include(legal_move2(New_open_N1), New_player_hand, Legal1),
+	length(Legal1, Num_legal1),
+	% Fichas que se pueden poner a la izquierda
+	include(legal_move2(New_open_N2), New_player_hand, Legal2),
+	length(Legal2, Num_legal2),
+	% Si se puede colocar al menos una ficha de cada lado, no nos pueden bloquear
+	(	(Num_legal1 > 0, Num_legal2 > 0) ->
+			Score3 is 10, !;
+			Score3 is 0
+	),
+	Score is Score1 + Score2 + Score3.
+
+% Obtiene el segundo elemento de una pareja
+% pair_second(i, o).
+pair_second(_-X, X).
+
 % Regresa true si la jugada dada es legal i.e. la ficha abierta dada es válida y la ficha
 % que se juega pertenece al pool correspondiente y puede colocarse junto a la ficha abierta
 % is_legal_move(i, i, i)
@@ -640,48 +800,11 @@ is_legal_move(Tile_pool, Open_tiles, [(Tile_N1, Tile_N2), Open_tile_N]):-
 		Tile_N2 = Open_tile_N
 	).
 
-% Ordena las jugadas legales por prioridad
-% sort_moves(i, i, o)
-sort_moves(Open_tiles, Legal_moves_, Ordered_moves):-
-	% Elimina jugadas repetidas
-	sort(Legal_moves_, Legal_moves),
-	% Mappea Move a la pareja Score-Move
-	maplist(map_score(Open_tiles), Legal_moves, Move_score_pair),
-	% Ordena por puntaje (de manera ascendente)
-	keysort(Move_score_pair, Sorted_pairs_),
-	% Reordena de manera descendente
-	reverse(Sorted_pairs_, Sorted_pairs),
-	% Coloca las jugadas en Ordered_moves
-	maplist(pair_second, Sorted_pairs, Ordered_moves).
-
-% Mappea Move a la pareja Score-Move
-% map_score(i,i, o) 
-map_score(Open_tiles, Move, Move_score_pair):-
-	score_move(Open_tiles, Move, Score),
-	Move_score_pair = Score-Move.
-
-% Asigna un puntaje a una jugada para ordenarlas
-%score_move(i, i, o)
-score_move([Open_tile_N1, Open_tile_N2], [(Player_tile_N1, Player_tile_N2), _], Score):-
-	% Criterio 1: la ficha es mula
-	(	Player_tile_N1 =:= Player_tile_N2 ->
-			Score1 is 100, !;
-			Score1 is 0
-	),
-	(	Open_tile_N1 =:= Open_tile_N2 ->
-			Score2 is 10, !;
-			Score2 is 0
-	),
-	Score3 is 0,
-	Score is Score1 + Score2 + Score3.
-
-% Obtiene el segundo elemento de una pareja
-% pair_second(i, o).
-pair_second(_-X, X).
-
-% Regresa la proba de que el oponente haga cierta jugada
+% Regresa la proba de que el oponente haga cierta jugada, que es la proba de
+% que tenga la ficha correspondiente dividida entre la cantidad de jugadas
+% que puede hacer con ella.
 % La proba de que el oponente tenga cierta ficha es k/k+m,
-% donde k es el número de fichas en su mano y m el número en el pozo
+% donde k es el número de fichas en su mano y m el número en el pozo.
 % prob_move(i, i, o)
 prob_move(Node, [(Oppo_tile_N1, Oppo_tile_N2), _], Prob):-
 	nth0(2, Node, [Open_tile_N1, Open_tile_N2]),
@@ -695,66 +818,31 @@ prob_move(Node, [(Oppo_tile_N1, Oppo_tile_N2), _], Prob):-
 	% Asumimos que todas las jugadas con esta ficha son equiprobables
 	Prob is (Num_oppo_tiles/(Num_oppo_tiles + Stock_size)) / (Count1 + Count2 + Count3 + Count4).
 
-% Calcula la proba de que el oponente tenga que robar en este turno
+% Calcula la proba de que el oponente tenga que robar en este turno, que es
+% m+k-l choose k / m+k choose k
 % prob_oppo_steal(i, o)
 prob_oppo_steal(Node, Prob):-
 	nth0(0, Node, Rem_tiles),
 	nth0(4, Node, Oppo_num_tiles), % k
-	length(Rem_tiles, Num_rem), % m
+	nth0(5, Node, Stock_size), % m
+	Total_tiles is Oppo_num_tiles + Stock_size, % m+k
 	include(tile_has_legal_move, Rem_tiles, Oppo_legal_tiles), % filtra las fichas legales
 	length(Oppo_legal_tiles, Num_legal), % l = Num_legal
-	Num_illegal is Num_rem - Num_legal, % m-l
-	% La proba es m-l choose k
-	bin_coeff(Num_illegal, Oppo_num_tiles, Prob).
+	Num_illegal is Stock_size - Num_legal, % m-l
+	% La proba es m-l choose k / m+k choose k
+	bin_coeff(Num_illegal, Oppo_num_tiles, Illegal_hands), % m-l choose k
+	bin_coeff(Total_tiles, Oppo_num_tiles, Total_hands), % m+k choose k
+	Prob is Illegal_hands / Total_hands.
 
+% Calcula la cantidad de fichas que se espera robe el oponente en promedio
+% E = (k+m+1)/(k+1)
+% oppo_expctd_steal(i, o):-
+oppo_expctd_steal(Node, Expctd):-
+	nth0(4, Node, Oppo_num_tiles), % k
+	nth0(5, Node, Stock_size), % m
+	Expctd is (Oppo_num_tiles + Stock_size + 1)/(Oppo_num_tiles + 1).
 
-
-% minimax_alpha_beta(Node, Depth, Prob, 1, -inf, inf, Eval)
-minimax_alpha_beta(Node, 0, _, _, _, Eval):-
-	eval_node(Node, Eval), !.
-% minimax alpha_beta(i, i, i, i, i, o)
-minimax_alpha_beta(Node, Depth, Max_player, Alpha, Beta, Eval):-
-	Depth1 is Depth-1,
-	find_children(Node, Children),
-	(	Max_player =:= 1 ->
-			% Si es turno del jugador
-			minimax_a_b_max_player(Children, Depth1, Alpha, Beta, -inf, Eval), !;
-			
-			% Si es turno del oponente
-			minimax_a_b_min_player(Children, Depth1, Alpha, Beta, inf, Eval)
-	).
-
-minimax_a_b_max_player([], _, _, _, Eval, Eval):- !.
-minimax_a_b_max_player([Child|Rest], Depth, Alpha, Beta, Prev_eval, Eval):-
-	minimax_alpha_beta(Child, Depth, 0, Alpha, Beta, New_eval),
-	Alpha1 is max(Alpha, New_eval),
-	(	Beta =< Alpha1 ->
-				!; % se sale
-		( Prev_eval < New_eval->
-				minimax_a_b_max_player(Rest, Depth, Alpha1, Beta, New_eval, Eval), !;
-				minimax_a_b_max_player(Rest, Depth, Alpha1, Beta, Prev_eval, Eval)
-		)
-	).
-minimax_a_b_min_player([], _, _, _, Eval, Eval):- !.
-minimax_a_b_min_player([Child|Rest], Depth, Alpha, Beta, Prev_eval, Eval):-
-	minimax_alpha_beta(Child, Depth, 0, Alpha, Beta, New_eval),
-	Beta1 is min(Beta, New_eval),
-	(	Beta1 =< Alpha ->
-				!; % se sale
-		( Prev_eval > New_eval->
-				minimax_a_b_max_player(Rest, Depth, Alpha, Beta1, New_eval, Eval), !;
-				minimax_a_b_max_player(Rest, Depth, Alpha, Beta1, Prev_eval, Eval)
-		)
-	).
-	
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   Utilidades de toma de decisiones   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-% Calcula n!/k!(n-k)!
+% Calcula n choose k = n!/k!(n-k)!
 % bin_coeff(i, i, o)
 bin_coeff(N, K, Res):-
 	(	(N =:= 0; K =:= 0; N < K) ->
@@ -775,5 +863,4 @@ fact(N, Res):-
 			fact(N1, Res1),
 			Res is N*Res1
 	).
-	
 	
