@@ -12,18 +12,19 @@
 :- use_module(library(clpfd)).
 main:-
   % Guarda las fichas del oponente y el pozo
-  assert(game_state(rem_tiles, [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), 
+  assert(game_state(rem_tiles, [%(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), 
                                 (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (2, 2), 
                                 (2, 3), (2, 4), (2, 5), (2, 6), (3, 3), (3, 4), (3, 5), 
                                 (3, 6), (4, 4), (4, 5), (4, 6), (5, 5), (5, 6), (6, 6)])),
-  assert(game_state(player_hand, [])),%[(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6)])),
+  assert(game_state(player_hand, [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6)])),
   assert(game_state(open_tiles, [])), % las dos fichas junto a las que se puede colocar una nueva
-  assert(game_state(num_player_tiles, 0)), % inicia en 0 para contarlas después
+  assert(game_state(num_player_tiles, 7)), % inicia en 0 para contarlas después
   assert(game_state(num_oppo_tiles, 7)),
-  assert(game_state(stock_size, 21)), % fichas en el pozo (inicialmente incluye las del jugador)
+  assert(game_state(stock_size, 14)), % fichas en el pozo (inicialmente incluye las del jugador)
   assert(game_state(oppo_missing, [])), % fichas que el oponente no tiene
   assert(game_state(oppo_passed, 0)), % true si el oponente pasó el turno pasado
   assert(game_state(player_passed, 0)), % true si el jugador pasó el turno pasado
+  assert(minimax_depth(10)), % profundidad a la que se explora el árbol minimax
   read_ini_player_hand,
   set_starting_player,
   first_turn,
@@ -544,6 +545,8 @@ player_choose_move_([(Tile_N1, Tile_N2)|_], Player_tile, Open_tile_N):-
 eval_node(Node, Eval):-
 	nth0(3, Node, Num_player_tiles),
 	nth0(4, Node, Num_oppo_tiles),
+	nth0(7, Node, Oppo_passed),
+	nth0(8, Node, Player_passed),
 	nth0(9, Node, Prob),
 	(	Num_player_tiles = 0 ->
 			% El jugador gana
@@ -552,6 +555,10 @@ eval_node(Node, Eval):-
 			% El oponente gana
 			Eval is -inf, !;
 			% Si ningún jugador ha ganado
+		(Oppo_passed =:= 1, Player_passed =:= 1) ->
+			% En este caso, se empata
+			Eval is 0, !;
+			% Si no entra a ninguno de los anteriores
 			Eval is Prob * (Num_oppo_tiles - Num_player_tiles)
 	).
 
@@ -609,16 +616,42 @@ find_children(Node, Max_player, Children):-
 			findall([Player_tile, Open_tile_N], is_legal_move(Player_hand, Open_tiles, [Player_tile, Open_tile_N]), P_legal_moves),
 			sort_moves(Node, P_legal_moves, P_sorted_moves), % ordena nodos
 			% Encuentra los hijos del nodo actual
-			maplist(find_child(Node, Max_player), P_sorted_moves, Children), !;
+			maplist(find_child(Node, Max_player), P_sorted_moves, Children), 
+			% Agrega el caso en que el jugador roba
+			%append([P_steal_node], Children_, Children),
+			!;
 			
 			nth0(0, Node, Rem_tiles),
 			findall([Oppo_tile, Open_tile_N], is_legal_move(Rem_tiles, Open_tiles, [Oppo_tile, Open_tile_N]), O_legal_moves),
 			sort(O_legal_moves, O_sorted_moves), % elimina jugadas repetidas
 			maplist(find_child(Node, Max_player), O_sorted_moves, Children)
+			% Agrega el caso en que el oponente pasa
+			%find_steal_child(Node, Max_player, , O_steal_node),
+			%append([O_steal_node], Children_, Children)
 	).
 
+% Construye el hijo de un nodo, suponiendo que alguien robó
+% find_steal_child(i, i, i, o)
+find_steal_child(Node, Max_player, Child):-
+	nth0(0, Node, Rem_tiles),
+	nth0(1, Node, Player_hand),
+	nth0(2, Node, [Open_tile_N1, Open_tile_N2]),
+	nth0(3, Node, Num_player_tiles),
+	nth0(4, Node, Num_oppo_tiles),
+	nth0(5, Node, Stock_size),
+	nth0(6, Node, Oppo_missing),
+	nth0(7, Node, Oppo_passed),
+	nth0(8, Node, Player_passed),
+	nth0(9, Node, Prob),
+	(	Max_player =:= 1 ->
+			% Suma las fichas que se espera robar y agrega una ficha legal aleatoria
+			Mod_node = [], !;
+			!
+	),
+	find_child(Node, Max_player, [(Tile_N1, Tile_N2), Open_tile_N], Child).
+
 % Encuentra el hijo de un nodo después de cierta jugada
-% find_child(i, i, o)
+% find_child(i, i, i, o)
 find_child(Node, Max_player, [(Tile_N1, Tile_N2), Open_tile_N], Child):-
 	nth0(0, Node, Rem_tiles),
 	nth0(1, Node, Player_hand),
@@ -631,6 +664,7 @@ find_child(Node, Max_player, [(Tile_N1, Tile_N2), Open_tile_N], Child):-
 	nth0(8, Node, Player_passed),
 	nth0(9, Node, Prob),
 	
+	% Encuentra qué fichas quedan abiertas
 	(	Open_tile_N1 = Open_tile_N ->
 		append([], [Open_tile_N2], Open_tiles_short), !; % Open_tiles_short = [Open_tile_N2]
 		append([], [Open_tile_N1], Open_tiles_short)     % Open_tiles_short = [Open_tile_N1]
@@ -642,6 +676,7 @@ find_child(Node, Max_player, [(Tile_N1, Tile_N2), Open_tile_N], Child):-
 			append(Open_tiles_short, [Tile_N1], New_open_tiles)
 	),
 	
+	% Encuentra Child
 	(	Max_player =:= 1 ->
 			% Jugador
 			delete(Player_hand, (Tile_N1, Tile_N2), New_player_hand),
@@ -669,7 +704,7 @@ minimax_alpha_beta(Node, Depth, Max_player, Alpha, Beta, Eval):-
 		
 		% En caso contrario, continúa explorando
 		Depth1 is Depth-1,
-		find_children(Node, Children),
+		find_children(Node, Max_player, Children),
 		(	Max_player =:= 1 ->
 				% Si es turno del jugador
 				minimax_a_b_max_player(Children, Depth1, Alpha, Beta, -inf, Eval), !;
@@ -715,7 +750,9 @@ minimax_a_b_min_player([Child|Rest], Depth, Alpha, Beta, Prev_eval, Eval):-
 % Asigna a cada jugada la pareja Eval-Move
 % map_eval(i, i, o)
 map_eval(Node, Move, Move_eval_pair):-
-	minimax(Node, 2, 0, Eval),
+	minimax_depth(Depth), % consulta la profundidad
+	minimax(Node, Depth, 0, Eval),
+	%minimax_alpha_beta(Node, Depth, 0, -inf, inf, Eval),
 	Move_eval_pair = Eval-Move.
 
 % Ordena las jugadas legales por prioridad
