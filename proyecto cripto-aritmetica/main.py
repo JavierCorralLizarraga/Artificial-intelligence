@@ -1,9 +1,11 @@
-# import fuerza_bruta_1
-# import backtrack
-# import cons
-# import evolutivo
-# import recocido
-import time
+from fuerza_bruta import fb1, fb2, fb3, fb4
+from backtrack import btk
+from cons import cons1, cons2
+from evolutivo import ev
+from recocido import sa
+import time ; from pprint import pprint ; from ortools.constraint_solver import pywrapcp
+from ortools.sat.python import cp_model ; import itertools
+
 
 def leer_problemas():
     problemas = []
@@ -32,7 +34,7 @@ def leer_problemas():
 
 def test_ejecucion_tiempos(problemas):
     # probamos velocidades de ejecucion todos sobre el problema de SEND + MORE = MONEY
-    algos = [cons1, fb1, fb2, fb3, cb1, cb2, bkt1, bkt2, ev]
+    algos = [cons1, cons2, fb1, fb2, fb3, fb4, bkt, ev, sa]
     tiempos = []
     ress=[]
     for algo in algos:

@@ -79,7 +79,7 @@ def fb4():
     chars = tuple(ord(c) for c in letras_ordenadas)
     digitos = tuple(range(10))
     cero = digitos[0]
-    for posible in permutations(digitos, len(letras)):
+    for posible in itertools.permutations(digitos, len(letras)):
         if cero not in posible[:n]:
             posible = [str(i) for i in posible]
             chars = [chr(i) if i == 43 or i == 61 else i for i in chars]

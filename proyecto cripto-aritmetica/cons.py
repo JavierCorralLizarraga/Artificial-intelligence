@@ -1,4 +1,6 @@
 from ortools.constraint_solver import pywrapcp
+from ortools.sat.python import cp_model
+
 def cons1():
     # Constraint programming engine
     solver = pywrapcp.Solver('send more money')
@@ -36,3 +38,35 @@ def cons1():
         solution_count += 1
     solver.EndSearch()
     print(f'Number of solutions found: {solution_count}')
+
+def cons2():
+    model = cp_model.CpModel()
+
+    # Define variables
+    S = model.NewIntVar(1, 9, 'S')
+    M = model.NewIntVar(1, 9, 'M')
+    E = model.NewIntVar(0, 9, 'E')
+    N = model.NewIntVar(0, 9, 'N')
+    D = model.NewIntVar(0, 9, 'D')
+    O = model.NewIntVar(0, 9, 'O')
+    R = model.NewIntVar(0, 9, 'R')
+    Y = model.NewIntVar(0, 9, 'Y')
+    C = [model.NewIntVar(0, 9, f'C{i}') for i in range(4)]
+
+    # Add constraints
+    model.AddAllDifferent([S, E, N, D, M, O, R, Y])
+    model.Add(C[3] == M)
+    model.Add(C[2] + S + M == O + C[3] * 10)
+    model.Add(C[1] + E + O == N + C[2] * 10)
+    model.Add(C[0] + N + R == E + C[1] * 10)
+    model.Add(D + E == Y + C[0] * 10)
+
+    # Solve the model
+    solver = cp_model.CpSolver()
+    status = solver.Solve(model)
+
+    if status == cp_model.OPTIMAL:
+        print(
+            f'Solution found:\nS = {solver.Value(S)}\nE = {solver.Value(E)}\nN = {solver.Value(N)}\nD = {solver.Value(D)}\nM = {solver.Value(M)}\nO = {solver.Value(O)}\nR = {solver.Value(R)}\nY = {solver.Value(Y)}')
+    else:
+        print('No solution found.')
