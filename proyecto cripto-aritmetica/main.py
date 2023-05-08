@@ -1,9 +1,6 @@
 # import fuerza_bruta_1
-# import fuerza_bruta_2
-# import backtrack1
-# import backtrack2
-# import constraint1
-# import constraint2
+# import backtrack
+# import cons
 # import evolutivo
 # import recocido
 import time
@@ -35,7 +32,7 @@ def leer_problemas():
 
 def test_ejecucion_tiempos(problemas):
     # probamos velocidades de ejecucion todos sobre el problema de SEND + MORE = MONEY
-    algos = [fb1, fb2, cb1, cb2, bkt1, bkt2, ev]
+    algos = [cons1, fb1, fb2, fb3, cb1, cb2, bkt1, bkt2, ev]
     tiempos = []
     ress=[]
     for algo in algos:
@@ -48,8 +45,9 @@ def test_ejecucion_tiempos(problemas):
     return zip(algos,tiempos,ress)
 def main():
     problemas = leer_problemas()
-    a= test_ejecucion_tiempos(problemas)
-    print(a)
+    tiempos = test_ejecucion_tiempos(problemas)
+    print(tiempos)
+
 
 if __name__ == "__main__":
     main()

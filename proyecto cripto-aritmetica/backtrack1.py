@@ -1,30 +1,30 @@
 from pprint import pprint
-s1 = 'send'
-s2 = 'more'
-s3 = 'money'
+str1 = 'send'
+str2 = 'more'
+str3 = 'money'
 
-letras = list(set(s1 + s2 + s3))
+letras = list(set(str1 + str2 + str3))
 letras.sort()
-def suma(a1, a2):
+def suma(a1, a2): # takes two lists of digits representing two numbers and returns a list of digits representing their su
     l = len(a1)
     res = [None] * l
-    carry = 0
+    acarreo = 0
     for i in reversed(range(l)):
         if a1[i] is None or a2[i] is None:
-            carry = 0
+            acarreo = 0
             continue
-        res[i] = a1[i] + a2[i] + carry
+        res[i] = a1[i] + a2[i] + acarreo
         if res[i] >= 10:
             res[i] -= 10
-            carry = 1
+            acarreo = 1
         else:
-            carry = 0
+            acarreo = 0
     if a1[0] is None or a2[0] is None:
         return [None] + res
-    return [carry] + res
-def replace(string, mapeo):
+    return [acarreo] + res
+def reemplaza(string, mapeo): # unction takes a string and a mapping of characters to digits and returns a list of digits where each character in the string is replaced by its corresponding digit in the mapping
     return [mapeo.get(string[i], None) for i in range(len(string))]
-def matches(res1, res2):
+def matchea(res1, res2): # checa si dos listas de digitos son iguales
     for i, v1 in enumerate(res1):
         v2 = res2[i]
         if v2 != v1 \
@@ -38,14 +38,13 @@ def matches(res1, res2):
 def value_count(mapping, c):
     m = dict(mapping)
     count = 0
-    for i in possible_values(mapping):
+    for i in valores_posibles(mapping):
         m[c] = i
         if is_valid(m):
             count += 1
     return count
-def most_restrained_variable(mapping):
+def ordenamiento_mas_restringido(mapping):
     min_count = 10000
-    vals = [mapping[key] for key in mapping]
     result = None
     for c in letras:
         if c not in mapping:
@@ -54,34 +53,33 @@ def most_restrained_variable(mapping):
                 min_count = count
                 result = c
     return result
-def possible_values(mapping):
-    vals = [mapping[key] for key in mapping]
+def valores_posibles(mapeo):
+    vals = [mapeo[key] for key in mapeo]
     for i in range(10):
         if i not in vals:
             yield i
-def least_constrained_ordering(mapping, c):
-    def howgood(i):
-        m = dict(mapping)
+def ordenamiento_menos_restringido(mapeo, c):
+    def calidad(i):
+        m = dict(mapeo)
         m[c] = i
-        return value_count(m, most_restrained_variable(m))
-    ordering = list(possible_values(mapping))
-    ordering.sort(key=howgood)
+        return value_count(m, ordenamiento_mas_restringido(m))
+    ordering = list(valores_posibles(mapeo))
+    ordering.sort(key=calidad)
     return reversed(ordering)
-def is_valid(mapping):
-    if mapping.get(s3[0], None) == 0:
+def is_valid(mapeo):
+    if mapeo.get(str3[0], None) == 0:
         return False
-    summ = suma(replace(s1, mapping), replace(s2, mapping))
-    return matches(replace(s3, mapping), summ)
+    summ = suma(reemplaza(str1, mapeo), reemplaza(str2, mapeo))
+    return matchea(reemplaza(str3, mapeo), summ)
 def solve(mapeo):
     if not is_valid(mapeo):
         return False
     mapeo = dict(mapeo)
     if len(mapeo) == len(letras):
         pprint(mapeo)
-        print('done!')
         exit()
-    c = most_restrained_variable(mapeo)
-    for i in least_constrained_ordering(mapeo, c):
+    c = ordenamiento_mas_restringido(mapeo)
+    for i in ordenamiento_menos_restringido(mapeo, c):
         mapeo[c] = i
         solve(mapeo)
 
