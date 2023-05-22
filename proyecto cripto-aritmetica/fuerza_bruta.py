@@ -85,5 +85,6 @@ def fb4():
             chars = [chr(i) if i == 43 or i == 61 else i for i in chars]
             ecuacion = problema.translate(dict(zip(chars, posible)))
             if eval(ecuacion):
+                print(ecuacion)
                 return ecuacion
     return None

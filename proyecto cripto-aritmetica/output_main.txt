@@ -1,0 +1,67 @@
+usando "backtr"
+la solución es:
+{'d': 7, 'e': 5, 'm': 1, 'n': 6, 'o': 0, 'r': 8, 's': 9, 'y': 2}
+tomo 0.040513038635253906 segundos
+-----------------------------
+usando "sim_an"
+la solución es:
+{'s': 9, 'e': 8, 'n': 4, 'd': 5, 'm': 3, 'o': 3, 'r': 5, 'y': 4}
+tomo 0.002354860305786133 segundos
+-----------------------------
+usando "cons1"
+la solución es:
+[S(9), M(1), E(5), N(6), D(7), O(0), R(8), Y(2)]
+Number of solutions found: 1
+tomo 0.0033338069915771484 segundos
+-----------------------------
+usando "cons2"
+la solución es:
+Solution found:
+S = 9
+E = 5
+N = 6
+D = 7
+M = 1
+O = 0
+R = 8
+Y = 2
+tomo 0.019775867462158203 segundos
+-----------------------------
+usando "preset_gen_algo"
+la solución es:
+chr: [5, 9, 1, 0, 0, 8, 9, 4, 3, 0, 1] f: 8.169591 len: 11
+['D', 'E', 'M', 'N', 'O', 'R', 'S', 'Y', 'x1', 'x2', 'x3']
+tomo 0.036840200424194336 segundos
+-----------------------------
+usando "fb1"
+la solución es:
+1
+[(10652, (9567, 1085))] listo
+[0]
+[(10652, (9567, 1085))]
+tomo 168.87663173675537 segundos
+-----------------------------
+usando "fb2"
+la solución es:
+[(9567, 1085, 10652)]
+tomo 15.064137935638428 segundos
+-----------------------------
+usando "fb3"
+la solución es:
+Solution found:
+S = 9
+E = 5
+N = 6
+D = 7
+M = 1
+O = 0
+R = 8
+Y = 2
+tomo 16.597790002822876 segundos
+-----------------------------
+usando "fb4"
+la solución es:
+9567+1085==10652
+tomo 1.6414120197296143 segundos
+-----------------------------
+
